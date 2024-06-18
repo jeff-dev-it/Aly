@@ -2,7 +2,7 @@
 mod aly {
     use std::env;
 
-    use crate::{native::{fs::read_file, types::ValueData, vars::*}, runtime::parser::get_lexer, Act};
+    use crate::{lexer::Lexer, native::{fs::read_file, types::ValueData, vars::*}, runtime::parser::get_lexer, tokens::Tokens, Act};
     
     pub struct Aly {
         args: Vec<String>,
@@ -39,7 +39,7 @@ mod aly {
             let file_to_run = read_file(path);
             let codes: Vec<&str> = file_to_run.trim().split("\n").collect();
 
-            get_lexer(codes);
+            get_lexer(self, codes);
         }
 
         // Variable manager
@@ -47,8 +47,26 @@ mod aly {
             &self.datas
         }
 
-        pub fn create_variable(&self) {
+        pub fn create_variable(&self, lexers: Vec<Lexer>) {
+            let name = &lexers[1];
 
+            if lexers.len() == 2 {
+                println!("none");
+                
+                return;
+            } 
+            
+            let identifier = &lexers[2];
+            let value = &lexers[3];
+
+            match identifier.token {
+                Tokens::Identifier => (),
+                _ => panic!("")
+            };
+
+            let var = Var::new(name.literal.to_string(), value.literal.to_string());
+
+            println!("{var}")
         }
     }
 }

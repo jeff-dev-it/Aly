@@ -1,6 +1,8 @@
 mod tokens {
     use core::fmt;
 
+    use crate::validators::{is_any_value, reference::is_reference};
+
     pub enum Tokens {
         // Variable
         Let,
@@ -295,7 +297,15 @@ mod tokens {
             "None" => Tokens::None,
             "\"" => Tokens::DupleQuote,
             "'" => Tokens::SimpleQuote,
-            _ => Tokens::None
+            _ => {
+                if is_any_value(&expression) {
+                    Tokens::Value
+                } else if is_reference(&expression) {
+                    Tokens::Reference
+                } else {
+                    Tokens::None
+                }
+            }
         }       
     }
 

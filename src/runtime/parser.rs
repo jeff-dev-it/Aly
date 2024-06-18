@@ -1,8 +1,8 @@
 mod parser {
-    use crate::{tokens::{get_token, Tokens}, validators::{is_char, is_num, structures::{is_close, is_opened, open_str}}};
+    use crate::{aly::Aly, lexer::Lexer, runtime::interpreter::exec, tokens::{get_token, Tokens}, validators::{is_char, is_num, str::split_str, structures::{is_close, is_opened, open_str}}};
 
-    pub fn get_lexer(lines: Vec<&str>) {
-        // let lexers = vec![];
+    pub fn get_lexer(run: &mut Aly, lines: Vec<&str>) {
+        let mut lexers = vec![];
         let mut to_end = 0;
         let mut is_str = Tokens::None;
         let mut ind = 1;
@@ -23,7 +23,28 @@ mod parser {
 
             ind += 1;
 
-            println!("exp {exp}")
+            let expressions = split_str(&exp.trim());
+
+            for expression in expressions {
+                lexers.push(
+                    Lexer::new(
+                        get_token(expression.clone()), 
+                        expression, 
+                        ind
+                    )
+                );
+            }
+
+            if to_end == 0 {
+                exec(run, &mut lexers);
+            } else if to_end < 0 {
+                panic!("Error on line {ind}: Closing a brace, but not open!")   
+            }
+        }
+
+
+        if to_end > 0 {
+            panic!("Error on line {ind}: Opening a brace, but not closing!")   
         }
     }
 
@@ -33,8 +54,18 @@ mod parser {
             _ => {
                 let tk = get_token(letter.to_owned());
 
+                if is_opened(tk.clone()) {
+                    *to_end += 1;
+                    *is_str = tk.clone();
+                    return String::from(" ");
+                } else if is_close(tk.clone()) {
+                    *to_end -= 1;
+                    *is_str = Tokens::None;
+                    return String::from(" ");
+                }
+
                 if is_char(letter) {
-                    if is_char(previous) || previous == " " {
+                    if is_char(previous) || is_num(previous) || previous == " " {
                         letter.to_string()
                     } else if open_str(Tokens::None, Some(is_str.clone())){
                         letter.to_string()
@@ -42,7 +73,7 @@ mod parser {
                         format!(" {}", letter)
                     }
                 } else if is_num(letter) {
-                    if is_num(previous) || previous == " " {
+                    if is_num(previous) || is_char(previous) || previous == " " {
                         letter.to_string()
                     } else {
                         format!(" {}", letter)
@@ -53,14 +84,6 @@ mod parser {
 
                     if tk.id() == "identifier" {
                         return format!(" {} ", letter);
-                    }
-    
-                    if is_opened(tk.clone()) {
-                        *to_end += 1;
-                        *is_str = tk.clone();
-                    } else if is_close(tk.clone()) {
-                        *to_end -= 1;
-                        *is_str = Tokens::None;
                     }
     
                     if open_str(tk.clone(), Some(is_str.clone())) {

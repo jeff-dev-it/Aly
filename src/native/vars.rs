@@ -1,6 +1,6 @@
 
 mod vars {
-    use crate::native::types::{Type, ValueData};
+    use crate::{native::types::{Type, ValueData}, tokens::Tokens};
 
     pub struct Var {
         name: String,
@@ -19,6 +19,26 @@ mod vars {
 
         pub fn get_value(&self) -> ValueData {
             self.value.clone()
+        }
+    }
+
+    pub fn is_var_declaration(tk: Tokens) -> bool{
+        match tk {
+            Tokens::Let | 
+            Tokens::Reference | 
+            Tokens::Identifier | 
+            Tokens::Value => true,
+            _ => false
+        }
+    }
+
+    pub fn is_const_declaration(tk: Tokens) -> bool{
+        match tk {
+            Tokens::Const | 
+            Tokens::Reference | 
+            Tokens::Identifier | 
+            Tokens::Value => true,
+            _ => false
         }
     }
 }
