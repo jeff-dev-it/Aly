@@ -4,7 +4,7 @@ mod lexer {
     pub struct Lexer {
         pub token: Tokens,
         pub literal: String,
-        line: i32
+        pub line: i32
     }
 
     impl Lexer {

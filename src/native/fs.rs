@@ -8,7 +8,7 @@ mod files {
         let file = match File::open(path) {
             Ok(it) => it,
             Err(err) => {
-                println!("Ocorreu um erro: {err}");
+                println!("Error: {err}");
 
                 return "".to_owned();
             }
@@ -20,7 +20,7 @@ mod files {
         match buf_reader.read_to_string(&mut contents) {
             Ok(it) => it,
             Err(err) => {
-                println!("Ocorreu um erro: {err}");
+                println!("Error: {err}");
 
                 return "".to_owned();
             }

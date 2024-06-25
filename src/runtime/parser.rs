@@ -1,11 +1,13 @@
 mod parser {
-    use crate::{aly::Aly, lexer::Lexer, runtime::interpreter::exec, tokens::{get_token, Tokens}, validators::{is_char, is_num, str::split_str, structures::{is_close, is_opened, open_str}}};
+    use crate::{aly::Aly, lexer::Lexer, native::types::Validator, runtime::interpreter::exec, tokens::{get_token, Tokens}, validators::{is_char, is_num, numeric::is_math_operator, str::split_str, structures::{is_close, is_opened, open_str}}};
 
+    // To interpreter code
     pub fn get_lexer(run: &mut Aly, lines: Vec<&str>) {
         let mut lexers = vec![];
         let mut to_end = 0;
         let mut is_str = Tokens::None;
         let mut ind = 1;
+        let mut comment_multi = false;
 
         for line in lines {
             let mut exp = String::new();
@@ -26,6 +28,21 @@ mod parser {
             let expressions = split_str(&exp.trim());
 
             for expression in expressions {
+
+
+                if expression.trim() == Tokens::CommentLine.literal() {
+                    break;
+                } else if expression.trim() == Tokens::CommentMulti.literal() {
+                    comment_multi = if comment_multi { false } else { true };
+                    
+                    continue;
+                } 
+
+                if comment_multi {
+                    continue;
+                }
+
+                
                 lexers.push(
                     Lexer::new(
                         get_token(expression.clone()), 
@@ -36,7 +53,9 @@ mod parser {
             }
 
             if to_end == 0 {
-                exec(run, &mut lexers);
+                let mut val: Box<dyn Validator> = Box::new(String::new());
+                
+                exec(run, &mut lexers, &mut val);
             } else if to_end < 0 {
                 panic!("Error on line {ind}: Closing a brace, but not open!")   
             }
@@ -54,18 +73,29 @@ mod parser {
             _ => {
                 let tk = get_token(letter.to_owned());
 
+
+                if tk.id() == Tokens::CommentLine.id() && previous.trim() != Tokens::CommentLine.literal() {
+                    return format!(" {}", letter);
+                }
+
+
                 if is_opened(tk.clone()) {
                     *to_end += 1;
                     *is_str = tk.clone();
-                    return String::from(" ");
+                    return format!(" {}", letter);
                 } else if is_close(tk.clone()) {
                     *to_end -= 1;
                     *is_str = Tokens::None;
-                    return String::from(" ");
+                    return format!(" {}", letter);
+                } else if is_math_operator(tk.clone()) {
+                    return format!(" {} ", letter);
                 }
 
                 if is_char(letter) {
-                    if is_char(previous) || is_num(previous) || previous == " " {
+                    if is_char(previous) || 
+                        is_num(previous) || 
+                        previous == " " ||
+                        previous == Tokens::Pointer.literal() {
                         letter.to_string()
                     } else if open_str(Tokens::None, Some(is_str.clone())){
                         letter.to_string()
@@ -84,6 +114,8 @@ mod parser {
 
                     if tk.id() == "identifier" {
                         return format!(" {} ", letter);
+                    } else if tk.literal() == Tokens::Pointer.literal() {
+                        return format!(" {}", letter);
                     }
     
                     if open_str(tk.clone(), Some(is_str.clone())) {

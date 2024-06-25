@@ -2,10 +2,10 @@
 mod aly {
     use std::env;
 
-    use crate::{lexer::Lexer, native::{fs::read_file, types::ValueData, vars::*}, runtime::parser::get_lexer, tokens::Tokens, Act};
+    use crate::{lexer::Lexer, native::{fs::read_file, fun_input, fun_print, process_value, tomb, types::{Type, Validator, ValueData}, vars::*}, runtime::parser::get_lexer, tokens::Tokens, validators::{is_any_value, reference::is_reference, str::{is_template_str, remove_quoted_str, use_template_str}, structures::{is_close, is_opened}}, Act};
     
     pub struct Aly {
-        args: Vec<String>,
+        // args: Vec<String>,
         action: Act,
         datas: Vec<Var>
     }
@@ -18,16 +18,20 @@ mod aly {
             };
 
             Aly {
-                args: vec![],
+                // args: vec![],
                 action,
                 datas: vec![
-                    Var::new(String::from("_dir_call"), cwd.display().to_string()),
+                    Var::new(String::from("_dir_call"), cwd.display().to_string(), false)
                 ]
             }
         }
 
         // Runtime
         pub fn run(&mut self, file: String){
+            self.datas.push(Var::new(String::from("print"), fun_print as fn(&mut Aly, String) -> Box<dyn Validator>, false));
+            self.datas.push(Var::new(String::from("input"), fun_input as fn(&mut Aly, String) -> Box<dyn Validator>, false));
+            self.datas.push(Var::new(String::from("tomb"), tomb as fn(&mut Aly, String) -> Box<dyn Validator>, false));
+
             match self.action {
                 Act::Run => self.run_code(file),
                 Act::Cli => {},
@@ -47,26 +51,190 @@ mod aly {
             &self.datas
         }
 
-        pub fn create_variable(&self, lexers: Vec<Lexer>) {
+        pub fn create_variable(&mut self, lexers: Vec<Lexer>) {
+            if lexers[0].token.id() != "def_let" {
+                let name = &lexers[0];
+                let identifier = &lexers[1];
+                let value = process_value(self, (&lexers[2..]).to_vec());
+                let var = self.get_var(name.clone());
+
+                match identifier.token {
+                    Tokens::Identifier => (),
+                    _ => panic!("")
+                };
+
+                                
+                let result = match var {
+                    Ok(v) => v.change_value(value),
+                    Err(err) => panic!("{err}"),
+                };
+
+                if result.is_err() {
+                    result.unwrap_or_else(|err| panic!("Error on line {}: {}", name.line, err));
+                }
+
+                return;
+            }
+
             let name = &lexers[1];
 
             if lexers.len() == 2 {
-                println!("none");
-                
+                let value = ValueData::String("None".to_owned());    
+
+                let var = Var::new(name.literal.to_string(), value.to_string(false), true);
+
+                self.datas.push(var);
+
                 return;
             } 
             
             let identifier = &lexers[2];
-            let value = &lexers[3];
+            let value = process_value(self, (&lexers[3..]).to_vec());
 
             match identifier.token {
                 Tokens::Identifier => (),
                 _ => panic!("")
             };
 
-            let var = Var::new(name.literal.to_string(), value.literal.to_string());
+            let var = Var::new(name.literal.to_string(), value, true);
 
-            println!("{var}")
+            self.datas.push(var)
+        }
+    
+        pub fn create_constant(&mut self, lexers: Vec<Lexer>) {
+            let name = &lexers[1];
+
+            if lexers.len() == 2 {
+
+                return;
+            } 
+            
+            let identifier = &lexers[2];
+            let value = process_value(self, (&lexers[3..]).to_vec());
+
+            match identifier.token {
+                Tokens::Identifier => (),
+                _ => panic!("")
+            };
+
+            let constant = Var::new(name.literal.to_string(), value, false);
+
+            self.datas.push(constant)
+        } 
+
+        pub fn get_var(&mut self, name: Lexer) -> Result<&mut Var, String> {
+            let var = self.datas.iter_mut().find(|var| var.compare_var(name.literal.clone()));
+
+            match var {
+                Some(v) => Ok(v),
+                None => Err(format!(
+                    "Error on line {}: Variable {} not found", 
+                    name.line,
+                    name.literal,
+                )),
+            }
+        }
+
+        pub fn get_var_per_name(&mut self, name: String) -> Result<&mut Var, String> {
+            let var = self.datas.iter_mut().find(|var| var.compare_var(name.clone()));
+
+            match var {
+                Some(v) => Ok(v),
+                None => Err(format!(
+                    "Variable {} not found",
+                    name
+                )),
+            }
+        }
+
+        // Function
+        pub fn function_run(&mut self, lexers: Vec<Lexer>) -> Box<dyn Validator> {
+            let name = &lexers[0];
+            let mut params: Vec<String> = vec![];
+            let mut fun_body: Vec<Lexer> = vec![];
+            let mut another_fun = 0;
+
+            for lex in &lexers[2..lexers.len() - 1] {
+                if lex.literal == "," {
+                    continue;
+                } else if is_opened(lex.token.clone()) {
+                    another_fun += 1;
+
+                    if another_fun == 1 {
+                        let ind = params.len() - 1;
+                        fun_body.push(lexers[2 + ind].clone());
+                    }
+
+                    fun_body.push(lex.clone());
+                    
+                    params.pop();
+                    
+                }else if is_close(lex.token.clone()) {
+                    another_fun -= 1;
+                    fun_body.push(lex.clone());
+
+                    if another_fun == 0 {
+                        let res = process_value(self, fun_body.clone());
+                        params.push(res);
+                        fun_body.clear(); 
+                    }
+                } else {
+                    if another_fun > 0 {
+                        fun_body.push(lex.clone());
+                    } else {
+                        params.push(lex.literal.clone())
+                    }
+                }
+            }
+
+            return match self.get_var(name.clone()) {
+                Ok(ok) => {
+                    match ok.get_type() {
+                        Type::NativeFunction | 
+                        Type::Function => {
+                            match ok.get_value() {
+                                ValueData::NativeFunction(fun) => {
+                                    let param = self.process_params(params);
+                                    fun(self, param)
+                                },
+                                _ => {
+                                    Box::new("None".to_owned())
+                                }
+                            }
+                        },
+                        _ => panic!("Error on line {}: {} is not a function!", name.line, name.literal)
+                    }
+                },
+                Err(err) => panic!("{}", err),
+            };
+        }
+
+        fn process_params(&mut self, p: Vec<String>) -> String {
+            let mut output = String::new();
+
+            for item in p {
+                if item.starts_with(&Tokens::Pointer.literal()) {
+                    output.push_str(
+                        &format!("address_{}", item.replace("&", ""))
+                    );
+                } else if is_template_str(&item) {
+                    let res = use_template_str(self, item);
+                    
+                    output.push_str(&remove_quoted_str(res))
+                }else if is_any_value(&item) {
+                    output.push_str(&remove_quoted_str(item))
+                } else if is_reference(&item) {
+                    match self.get_var_per_name(item.clone()) {
+                        Ok(ok) => {
+                            output.push_str(&ok.get_value().to_string(false))                        
+                        },
+                        Err(err) => panic!("{}", err),
+                    };
+                }
+
+            }
+
+            output
         }
     }
 }

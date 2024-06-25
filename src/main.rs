@@ -14,7 +14,7 @@ pub mod runtime {
     pub mod interpreter;
 }
 
-enum Act {
+pub enum Act {
     Run,
     Cli,
     Comp
