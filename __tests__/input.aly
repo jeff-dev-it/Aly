@@ -1,0 +1,11 @@
+let nome = input(
+    input(
+        input(
+            input(
+                "Digite algo"
+            )
+        )
+    )
+)
+
+print("Você digitou: $nome")
