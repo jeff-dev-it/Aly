@@ -2,7 +2,7 @@
 mod aly {
     use std::env;
 
-    use crate::{lexer::Lexer, native::{fs::read_file, fun_input, fun_print, process_value, tomb, types::{Type, Validator, ValueData}, vars::*}, runtime::parser::get_lexer, tokens::Tokens, validators::{is_any_value, reference::is_reference, str::{is_template_str, remove_quoted_str, use_template_str}, structures::{is_close, is_opened}}, Act};
+    use crate::{lexer::Lexer, native::{fs::read_file, fun_input, fun_print, process_value, tomb, types::{Type, Validator, ValueData}, vars::*}, runtime::parser::get_lexer, tokens::Tokens, validators::{str::remove_quoted_str, structures::{is_close, is_opened}}, Act};
     
     pub struct Aly {
         // args: Vec<String>,
@@ -21,7 +21,7 @@ mod aly {
                 // args: vec![],
                 action,
                 datas: vec![
-                    Var::new(String::from("_dir_call"), cwd.display().to_string(), false)
+                    Var::new(String::from("_dir_call"), format!("\"{}\"",  cwd.display().to_string()), false)
                 ]
             }
         }
@@ -147,10 +147,19 @@ mod aly {
             }
         }
 
+        pub fn get_var_prop(&mut self, lexers: Vec<Lexer>) -> Box<dyn Validator> {
+            let var_target = match self.get_var(lexers[0].clone()) {
+                Ok(var) => var.get_prop(lexers[1..].to_vec()),
+                Err(err) => panic!("{err}"),
+            };
+
+            var_target
+        }
+
         // Function
         pub fn function_run(&mut self, lexers: Vec<Lexer>) -> Box<dyn Validator> {
             let name = &lexers[0];
-            let mut params: Vec<String> = vec![];
+            let mut params: Vec<Lexer> = vec![];
             let mut fun_body: Vec<Lexer> = vec![];
             let mut another_fun = 0;
 
@@ -175,14 +184,16 @@ mod aly {
 
                     if another_fun == 0 {
                         let res = process_value(self, fun_body.clone());
-                        params.push(res);
+                        let lexer_res = Lexer::new(Tokens::Value, res.to_string(true), lex.line);
+
+                        params.push(lexer_res);
                         fun_body.clear(); 
                     }
                 } else {
                     if another_fun > 0 {
                         fun_body.push(lex.clone());
                     } else {
-                        params.push(lex.literal.clone())
+                        params.push(lex.clone())
                     }
                 }
             }
@@ -194,7 +205,7 @@ mod aly {
                         Type::Function => {
                             match ok.get_value() {
                                 ValueData::NativeFunction(fun) => {
-                                    let param = self.process_params(params);
+                                    let param = remove_quoted_str(process_value(self, params).to_string(false));
                                     fun(self, param)
                                 },
                                 _ => {
@@ -207,34 +218,6 @@ mod aly {
                 },
                 Err(err) => panic!("{}", err),
             };
-        }
-
-        fn process_params(&mut self, p: Vec<String>) -> String {
-            let mut output = String::new();
-
-            for item in p {
-                if item.starts_with(&Tokens::Pointer.literal()) {
-                    output.push_str(
-                        &format!("address_{}", item.replace("&", ""))
-                    );
-                } else if is_template_str(&item) {
-                    let res = use_template_str(self, item);
-                    
-                    output.push_str(&remove_quoted_str(res))
-                }else if is_any_value(&item) {
-                    output.push_str(&remove_quoted_str(item))
-                } else if is_reference(&item) {
-                    match self.get_var_per_name(item.clone()) {
-                        Ok(ok) => {
-                            output.push_str(&ok.get_value().to_string(false))                        
-                        },
-                        Err(err) => panic!("{}", err),
-                    };
-                }
-
-            }
-
-            output
         }
     }
 }

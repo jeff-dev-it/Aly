@@ -7,6 +7,8 @@ pub mod reference;
 mod validators {
     use regex::Regex;
 
+    use crate::tokens::Tokens;
+
     use super::{numeric::is_any_number, str::is_any_str};
 
     // Verify Value
@@ -21,7 +23,7 @@ mod validators {
     } 
 
     pub fn is_char(item: &str) -> bool {
-        let re = Regex::new("(?i)[a-z]").unwrap();
+        let re = Regex::new("(?i)[a-z|_]").unwrap();
 
         re.is_match(item)
     }
@@ -31,6 +33,24 @@ mod validators {
 
         re.is_match(item)
     }
+
+    pub fn is_conditional_exp(tk: Tokens) -> bool{
+        match tk {
+            Tokens::GreaterThan |
+            Tokens::GreaterThanOrEqual |
+            Tokens::LessThan |
+            Tokens::LessThanOrEqual |
+            Tokens::Equal | 
+            Tokens::NotEqual |
+            Tokens::And |
+            Tokens::Or |
+            Tokens::Xor | 
+            Tokens::Not => true,
+            _ => false
+        }
+    }
+
+    // Conversor
 
     pub fn conversor_to_int(item: String) -> i32 {
         match item.parse::<i32>() {
@@ -62,7 +82,6 @@ mod validators {
             true
         }
     }
-
 }
 
 pub use validators::*;

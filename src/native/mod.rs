@@ -1,15 +1,17 @@
 pub mod fs;
 pub mod vars;
 pub mod types;
+pub mod conditions;
+pub mod create_object;
 
 mod native {
     use std::io::{stdin, stdout, Write};
 
     use eval::eval;
 
-    use crate::{aly::Aly, lexer::Lexer, runtime::interpreter::exec, validators::{is_any_value, reference::is_reference, str::{is_template_str, put_quoted_str, replace_spined, use_template_str}}};
+    use crate::{aly::Aly, lexer::Lexer, runtime::interpreter::exec, tokens::Tokens, validators::{is_any_value, reference::is_reference, str::{is_template_str, put_quoted_str, replace_spined, use_template_str}}};
 
-    use super::types::Validator;
+    use super::types::{Validator, ValueData};
     
     // Fun
     pub fn exec_rust(expression: String) -> Result<String, String> {
@@ -51,11 +53,9 @@ mod native {
     }
 
     // Process
-    pub fn process_value(aly: &mut Aly, mut lexers: Vec<Lexer>) -> String {
-        let mut value = String::new();
-        
+    pub fn process_value(aly: &mut Aly, mut lexers: Vec<Lexer>) -> ValueData {
         if lexers.len() == 0 {
-            return "None".to_owned();   
+            return ValueData::String("None".to_owned());   
         } else if lexers.len() > 1 {
             let mut val: Box<dyn Validator> = Box::new(String::new());
             
@@ -63,15 +63,18 @@ mod native {
 
             let (_, res) = val.valid();
 
-            value.push_str(&res.to_string(true));
+            return res;
         } else {
             let val = lexers[0].clone();
+            let mut res = String::new();
 
-            if is_any_value(&val.literal) {
+            if val.literal.starts_with(&Tokens::Pointer.literal()) {
+                res = format!("address_{}", val.literal.replace("&", ""));
+            } else if is_any_value(&val.literal) {
                 if is_template_str(&val.literal) {
-                    value.push_str(&use_template_str(aly, val.literal))
+                    res = use_template_str(aly, val.literal);
                 } else {
-                    value.push_str(&val.literal)
+                    res = val.literal;
                 }
             } else if is_reference(&val.literal) {
                 let var = aly.get_var_per_name(val.literal);
@@ -81,11 +84,11 @@ mod native {
                     Err(_) => "None".to_string(),
                 };
                 
-                value.push_str(&_val_)
+                res = _val_.clone()
             }
-        }
 
-        return value; 
+            ValueData::String(res)
+        }
     }
 
     // IO

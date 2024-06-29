@@ -8,7 +8,7 @@ mod number {
     }
 
     pub fn is_int(item: &str) -> bool {
-        let re = Regex::new(r"^[0-9]+$").unwrap();
+        let re = Regex::new(r"^-?[0-9]+$").unwrap();
 
         re.is_match(item)
     }

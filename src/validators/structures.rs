@@ -1,22 +1,39 @@
 mod structures {
     use crate::tokens::Tokens;
 
-    pub fn open_str(tk: Tokens, opened_one: Option<Tokens>) -> bool {
-        if let Some(tk_opened) = opened_one {
-            match (tk, tk_opened) {
-                (Tokens::SimpleQuote, Tokens::SimpleQuote) |
-                (Tokens::DupleQuote, Tokens::DupleQuote) => false,
-                (Tokens::SimpleQuote, _) |
-                (Tokens::DupleQuote, _) => true,
-                (_, Tokens::SimpleQuote) |
-                (_, Tokens::DupleQuote) => true,
-                _ => false,
-            }
-        } else {
-            match tk {
-                Tokens::SimpleQuote | Tokens::DupleQuote => true,
-                _ => false,
-            }
+    pub fn has_open_str(tk: Tokens) -> bool {
+        match tk {
+            Tokens::DupleQuote | Tokens::SimpleQuote => true,
+            _ => false
+        }
+    }
+
+    pub fn open_str(tk: Tokens, opened: Tokens) -> bool {
+        match tk {
+            Tokens::SimpleQuote | Tokens::DupleQuote => tk.id() != opened.id(),
+            _ => matches!(opened, Tokens::SimpleQuote | Tokens::DupleQuote),
+        }
+    }
+    
+    pub fn close_str(tk: Tokens, opened: Tokens) -> bool {
+        matches!((tk, opened), 
+            (Tokens::SimpleQuote, Tokens::SimpleQuote) | 
+            (Tokens::DupleQuote, Tokens::DupleQuote)
+        )
+    }
+    
+    pub fn is_opened_brace(tk: Tokens) -> bool {
+        
+        match tk {
+            Tokens::LeftBrace => true,
+            _ => false
+        }
+    }
+
+    pub fn is_closed_brace(tk: Tokens) -> bool {
+        match tk {
+            Tokens::RightBrace => true,
+            _ => false
         }
     }
     

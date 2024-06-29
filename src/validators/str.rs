@@ -1,7 +1,7 @@
 mod str {
     use regex::Regex;
 
-    use crate::aly::Aly;
+    use crate::{aly::Aly, lexer::Lexer, tokens::get_token};
 
     pub fn split_str(code: &str) -> Vec<String> {
         let re = Regex::new(r#"("[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'|\S+)"#).unwrap();
@@ -70,7 +70,7 @@ mod str {
 
     pub fn use_template_str(aly: &Aly, _str_: String) -> String {
         let mut output = String::new();
-        let variables_capture = Regex::new(r#"\$([a-zA-Z]\w*)"#).unwrap();
+        let variables_capture = Regex::new(r#"\$([a-zA-Z]\w*(?:\.[a-zA-Z]\w*)*)"#).unwrap();
         let mut final_str = _str_.clone();
         let mut capt_vars: Vec<_> = variables_capture
             .captures_iter(&_str_)
@@ -83,11 +83,30 @@ mod str {
         for cap in capt_vars {
             let variable = &aly.get_vars();
             let var_expect = cap.replace("$", "");
-            let variable_found = variable.iter().find(|&v| v.compare_var(var_expect.to_string()));
+            let props: Vec<&str> = var_expect.split(".").collect();
+            let variable_found = variable.iter().find(|&v| v.compare_var(props[0].to_owned()));
 
             match variable_found {
                 Some(variable) => {
-                    final_str = final_str.replace(&format!("${}", cap), &variable.get_value().to_string(false)).clone();
+                    if props.len() > 1 {
+                        let mut lex = vec![];
+
+                        for i in props[1..].to_vec() {
+                            lex.push(
+                                Lexer::new(
+                                    get_token(i.to_owned()), 
+                                    i.to_owned(), 
+                                    0
+                                )
+                            );
+                        }
+
+                        let val = &variable.get_value().get_prop(false, lex).valid().1.to_string(false);
+                        
+                        final_str = final_str.replace(&format!("${}", cap), &remove_quoted_str(val.to_string())).clone();
+                    } else {
+                        final_str = final_str.replace(&format!("${}", cap), &variable.get_value().to_string(false)).clone();
+                    }
                 },
                 None => {
                     panic!("Error -> The variable {var_expect} is not defined");

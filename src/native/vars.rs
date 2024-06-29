@@ -1,9 +1,9 @@
 mod vars {
     use core::fmt;
+    
 
     use crate::{
-        native::types::{Type, Validator, ValueData},
-        tokens::Tokens,
+        lexer::Lexer, native::types::{Type, Validator, ValueData}, tokens::Tokens
     };
 
     pub struct Var {
@@ -95,6 +95,10 @@ mod vars {
 
         pub fn get_type(&self) -> &Type {
             &self.data_type
+        }
+    
+        pub fn get_prop(&self, props: Vec<Lexer>) -> Box<dyn Validator>  {
+            self.get_value().get_prop(self.mutable, props)
         }
     }
 

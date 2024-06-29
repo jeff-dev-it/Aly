@@ -1,7 +1,11 @@
 mod interpreter {
     use regex::Regex;
 
-    use crate::{aly::Aly, lexer::Lexer, native::{exec_rust, process_value, types::Validator, vars::{is_const_declaration, is_var_declaration}}, tokens::Tokens, validators::{numeric::is_math_operator, structures::{is_close, is_opened}}};
+    use crate::{aly::Aly, lexer::Lexer, native::{conditions::exec_cond, create_object::create_object, exec_rust, process_value, types::Validator, vars::{is_const_declaration, is_var_declaration}}, tokens::Tokens, validators::{is_conditional_exp, numeric::is_math_operator, structures::{is_close, is_opened}}};
+
+    fn line_is_dec(previous: Vec<Lexer>) -> bool {
+        previous.iter().rev().find(|&item| item.token.id() == "identifier").is_some()
+    }
 
     pub fn exec(run: &mut Aly, lexers: &mut Vec<Lexer>, val: &mut Box<dyn Validator>){
         let mut to_made = "none";
@@ -9,7 +13,6 @@ mod interpreter {
         let mut previous: Vec<Lexer> = vec![];
 
         for lex in &mut *lexers {
-
             if is_opened(lex.token.clone()) 
                 || is_close(lex.token.clone()) 
             {
@@ -17,7 +20,7 @@ mod interpreter {
                     Tokens::RightParenthesis | 
                     Tokens::LeftParenthesis => {
                         if to_made.contains("_dec") {
-                            if previous.iter().rev().skip(1).find(|&item| item.token.id() == "identifier").is_some() {
+                            if line_is_dec(previous.clone()) {
                                 to_made
                             } else {
                                 "use_fun"
@@ -28,11 +31,14 @@ mod interpreter {
                     },
                     Tokens::LeftBrace |
                     Tokens::RightBrace => {
-                        match to_made {
-                            "use_fun" => "dec_fun",
-                            "var_dec" => "var_create_object",
-                            "const_dec" => "const_create_object",
-                            _ => "use_block"
+
+                        if line_is_dec(previous.clone()) {
+                            to_made
+                        } else {
+                            match to_made {
+                                "use_fun" => "dec_fun",
+                                _ => "create_object"
+                            }
                         }
                     }
                     _ => ""
@@ -40,7 +46,7 @@ mod interpreter {
             }
             else if is_math_operator(lex.token.clone()) {
                 to_made = if to_made.contains("_dec") {
-                    if previous.iter().rev().skip(1).find(|&item| item.token.id() == "identifier").is_some() {
+                    if line_is_dec(previous.clone()) {
                         to_made
                     } else {
                         "math"
@@ -48,8 +54,19 @@ mod interpreter {
                 } else {
                     "math"
                 }
+            } else if is_conditional_exp(lex.token.clone()) {
+                to_made = if to_made.contains("_dec") {                    
+                    if line_is_dec(previous.clone()) {
+                        to_made
+                    } else {
+                        "conditional"
+                    }
+                } else {
+                    "conditional"
+                }
             }
             else if is_var_declaration(lex.token.clone()) {
+
                 if (ind > 0 && 
                     to_made == "var_dec" && 
                     is_var_declaration(previous[ind - 1].clone().token)) || 
@@ -63,12 +80,29 @@ mod interpreter {
                     ind == 0 {
                     to_made = "const_dec";
                 }
+            } else if lex.token.id() == Tokens::Dot.id() {
+                if to_made == "use_fun" {
+                    previous.push(lex.clone());
+                    ind += 1;
+                    
+                    continue;
+                }
+
+                to_made = if to_made.contains("_dec") {
+                    if previous.iter().rev().skip(1).find(|&item| item.token.id() == "identifier").is_some() {
+                        to_made
+                    } else {
+                        "use_prop"
+                    }
+                } else {
+                    "use_prop"
+                }                        
             }
 
             previous.push(lex.clone());
             ind += 1;
         }
-        
+
         match to_made {
             "var_dec" => run.create_variable(previous),
             "const_dec" => run.create_constant(previous),
@@ -84,7 +118,7 @@ mod interpreter {
                         Tokens::Reference => {
                            let data = process_value(run, [prev].to_vec());
 
-                           exp.push_str(&data)
+                           exp.push_str(&data.to_string(false))
                         }
                         _ => exp.push_str(&prev.literal)
                     }
@@ -123,6 +157,13 @@ mod interpreter {
                     },
                 }    
             }
+            "conditional" => {
+                let res = exec_cond(run, previous);
+
+                *val = res;
+            }
+            "use_prop" => *val = run.get_var_prop(previous),
+            "create_object" => *val = create_object(run, previous),
             _ => {
                 
             },
