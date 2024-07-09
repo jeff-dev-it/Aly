@@ -1,7 +1,7 @@
 mod interpreter {
     use regex::Regex;
 
-    use crate::{aly::Aly, lexer::Lexer, native::{conditions::exec_cond, create_object::create_object, exec_rust, process_value, types::Validator, vars::{is_const_declaration, is_var_declaration}}, tokens::Tokens, validators::{is_conditional_exp, numeric::is_math_operator, structures::{is_close, is_opened}}};
+    use crate::{aly::Aly, lexer::Lexer, native::{conditions::exec_cond, create_object::create_object, exec_rust, process_value, types::Validator, vars::{is_const_declaration, is_var_declaration}, vector::create_array}, tokens::Tokens, validators::{is_conditional_exp, numeric::is_math_operator, structures::{is_close, is_opened}}};
 
     fn line_is_dec(previous: Vec<Lexer>) -> bool {
         previous.iter().rev().find(|&item| item.token.id() == "identifier").is_some()
@@ -29,9 +29,16 @@ mod interpreter {
                             "use_fun"
                         }                        
                     },
+                    Tokens::LeftBracket |
+                    Tokens::RightBracket => {
+                        if line_is_dec(previous.clone()) {
+                            to_made
+                        } else {
+                            "create_array"
+                        }
+                    },
                     Tokens::LeftBrace |
                     Tokens::RightBrace => {
-
                         if line_is_dec(previous.clone()) {
                             to_made
                         } else {
@@ -164,6 +171,7 @@ mod interpreter {
             }
             "use_prop" => *val = run.get_var_prop(previous),
             "create_object" => *val = create_object(run, previous),
+            "create_array" => *val = create_array(run, previous),
             _ => {
                 
             },

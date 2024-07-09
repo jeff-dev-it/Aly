@@ -1,7 +1,7 @@
 mod types {
     use core::fmt;
 
-    use crate::{aly::Aly, lexer::Lexer, native::create_object::Object, validators::{conversor_to_bool, conversor_to_float, conversor_to_int, is_bool, is_num, numeric::{is_float, is_int}, str::{is_any_str, put_quoted_str, remove_quoted_str}}};
+    use crate::{aly::Aly, lexer::Lexer, native::{create_object::Object, vector::Vector}, validators::{conversor_to_bool, conversor_to_float, conversor_to_int, is_bool, is_num, numeric::{is_float, is_int}, str::{is_any_str, put_quoted_str, remove_quoted_str}}};
 
     pub enum Type {
         Int,
@@ -42,7 +42,7 @@ mod types {
         Float(f32),
         String(String),
         Bool(bool),
-        Vec(Vec<String>),
+        Vec(Vector),
         Object(Object),
         Function(Vec<Lexer>),   
         NativeFunction(fn(&mut Aly, String) -> Box<dyn Validator>),
@@ -61,7 +61,7 @@ mod types {
                     }
                 },
                 ValueData::Bool(bool)  => bool.to_string(),
-                ValueData::Vec(_) => String::from("None"),
+                ValueData::Vec(vec) => vec.to_json(0),
                 ValueData::Function(_) => "Function".to_owned(),
                 ValueData::NativeFunction(_) => "NativeFunction".to_owned(),
                 ValueData::Object(obj) => obj.to_string(false),
@@ -82,10 +82,10 @@ mod types {
         } 
 
         pub fn get_prop(&self, is_mut: bool, props: Vec<Lexer>) -> Box<dyn Validator> {
-            let mut result = String::new();
             let mut props_vec = vec![];
             
             let data = self.extract();
+            println!("prop {} {}", data.valid().0, data.valid().1.to_string(false));
             let line = props[0].line;
 
             for prop in props {
@@ -94,8 +94,10 @@ mod types {
                 }
             }
 
-            if props_vec.len() == 1 {
-                result = self.prop(&props_vec[0], is_mut, line, data).to_string(false);
+            return Box::new(put_quoted_str(if props_vec.len() == 1 {
+                println!("{}", data.valid().0);
+
+                self.prop(&props_vec[0], is_mut, line, data).to_string(false)
             } else {
                 let mut tmp = self.prop(props_vec[0].as_str(), is_mut, line, data);
 
@@ -116,15 +118,13 @@ mod types {
                     tmp = self.prop(prop.as_str(), is_mut, line, boxed_tmp);
                 }
                 
-                result = tmp.to_string(false);                            
-            }
-
-
-            return Box::new(put_quoted_str(result));
+                tmp.to_string(false)                            
+            }));
         }
 
         pub fn prop(&self, prop: &str, is_mut: bool, line: i32, data: Box<dyn Validator>) -> ValueData {
             let (type_data, value) = data.valid();
+
         
             match prop {
                 "type" => ValueData::String(type_data.to_string()),
@@ -156,17 +156,24 @@ mod types {
                             Type::String => {
                                 let x = conversor_to_int(item.to_owned());
                                 let val = value.to_string(false);
-                                if x == -1 {
+                                if x <= -1 {
                                     return ValueData::String(val.chars().last().unwrap().to_string());
                                 }
                                 return ValueData::String(val.chars().nth(x.try_into().unwrap()).unwrap().to_string());
                             },
                             _ => {
-                                panic!(
-                                    "Error on line {}: The type {} is not indexable", 
-                                    line,
-                                    type_data
-                                )
+                                match self {
+                                    ValueData::Vec(vec) => {
+                                        let x = conversor_to_int(item.to_owned());
+
+                                        vec.get_index(x.try_into().unwrap())
+                                    },
+                                    _ => panic!(
+                                        "Error on line {}: The type {} is not indexable", 
+                                        line,
+                                        type_data
+                                    )
+                                }
                             }
                         }
                     } else if type_data.to_string() == "obj" {
@@ -225,7 +232,7 @@ mod types {
                     str.valid()
                 },
                 ValueData::Bool(bool) => (Type::Bool, ValueData::Bool(*bool)),
-                ValueData::Vec(vec) => (Type::Vec, ValueData::Vec(vec.to_vec())),
+                ValueData::Vec(vec) => (Type::Vec, ValueData::Vec(vec.clone())),
                 ValueData::Object(obj) => (Type::Obj, ValueData::Object(obj.clone())),
                 ValueData::Function(fun) => (Type::Function, ValueData::Function(fun.clone())),
                 ValueData::NativeFunction(fun) => (Type::NativeFunction, ValueData::NativeFunction(*fun)),

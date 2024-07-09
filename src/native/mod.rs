@@ -3,6 +3,7 @@ pub mod vars;
 pub mod types;
 pub mod conditions;
 pub mod create_object;
+pub mod vector;
 
 mod native {
     use std::io::{stdin, stdout, Write};

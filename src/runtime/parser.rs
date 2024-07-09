@@ -89,6 +89,11 @@ mod parser {
                 if tk.id() == Tokens::CommentLine.id() && previous.trim() != Tokens::CommentLine.literal() {
                     return format!(" {}", letter);
                 }
+
+                if tk.id() == Tokens::Comma.id() {
+                    return format!(" {} ", letter);
+                }
+                
                 
                 else if is_conditional_exp(tk.clone()) {
                     return format!(" {}", letter);
