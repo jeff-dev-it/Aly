@@ -85,7 +85,6 @@ mod types {
             let mut props_vec = vec![];
             
             let data = self.extract();
-            println!("prop {} {}", data.valid().0, data.valid().1.to_string(false));
             let line = props[0].line;
 
             for prop in props {
@@ -95,8 +94,6 @@ mod types {
             }
 
             return Box::new(put_quoted_str(if props_vec.len() == 1 {
-                println!("{}", data.valid().0);
-
                 self.prop(&props_vec[0], is_mut, line, data).to_string(false)
             } else {
                 let mut tmp = self.prop(props_vec[0].as_str(), is_mut, line, data);
